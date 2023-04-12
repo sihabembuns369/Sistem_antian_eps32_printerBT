@@ -32,12 +32,14 @@ void IRAM_ATTR triggerScan()
 
 int nilaiA, nilaiB;
 int nilaiAwal_a = 0 , nilaiAwal_b = 0;
+int resetloket = 0;
 // Structure example to receive data
 // Must match the sender structure
 typedef struct struct_message {
   int id;
   int butonA;
   int butonB;
+  int resetl;
 } struct_message;
 
 
@@ -60,6 +62,7 @@ void OnDataRecv(const uint8_t * mac_addr, const uint8_t *incomingData, int len) 
 
   boardsStruct[myData.id - 1].butonA = myData.butonA;
   boardsStruct[myData.id - 1].butonB = myData.butonB;
+  boardsStruct[myData.id - 1].resetl = myData.resetl;
   //  Serial.printf("x value: %d \n", boardsStruct[myData.id-1].butonA);
   //  Serial.printf("y value: %d \n", boardsStruct[myData.id-1].butonB);
   //  Serial.println();
@@ -112,6 +115,7 @@ void loop() {
   //dari bluettoh
   nilaiA = boardsStruct[0].butonA;
   nilaiB = boardsStruct[0].butonB;
+  resetloket = boardsStruct[0].resetl;
   //panggilA
   pinA = boardsStruct[1].butonA;
   panggilulangA = boardsStruct[1].butonB;
@@ -129,7 +133,9 @@ void loop() {
   Serial.print("  LoketB ");
   Serial.print(nilaiB);
   Serial.print("  counter A =");
-  Serial.println(nilaiAwal_a);
+  Serial.print(nilaiAwal_a);
+  Serial.print("  loket di reset =");
+  Serial.println(resetloket);
 //  loketA();
 //  loketB();
 
@@ -178,6 +184,11 @@ void loop() {
        if (nilaiAwal_b > 30) {
         nilaiAwal_b = 0;
       }
+
+      if(resetloket = 1){
+        nilaiAwal_a = 0;
+        nilaiAwal_b = 0;
+        }
 
   //terbilang(16, 18, nilaiB);
 

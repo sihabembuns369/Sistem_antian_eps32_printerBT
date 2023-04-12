@@ -37,6 +37,7 @@ byte count_bt = 0;
 int setjam;
 int setmenit;
 int setdetik;
+int resetloket = 0;
 String jam, menit, detik;
 char nama_hari[7][12] = { "sabtu", "minggu", "senen", "selasa", "rabu", "kamis", "jumat" };
 
@@ -51,6 +52,7 @@ typedef struct struct_message {
 int id;
   int butonA;
   int butonB;
+  int resetl;
   //  uint8_t jam;
   //  uint8_t menit;
   //  uint8_t detik;
@@ -226,7 +228,7 @@ void setup() {
   }
 
 
-  // Serial.println(name);
+   Serial.println(name);
 
   // Serial.print((char)EEPROM.readChar(3));
   // Serial.print((char)EEPROM.readChar(4));
@@ -299,34 +301,31 @@ void loop() {
     digitalWrite(lampuSTA, LOW);
 
     count_bt = 0;
-  } else if ((statewifi == 0 || statewifi == 255) && !connected) {
+  } else if ((statewifi == 0 || statewifi == 255)) {
     Serial.println(" mode STA");
     digitalWrite(lampuAP, LOW);
     digitalWrite(lampuSTA, HIGH);
 
-    // myData.butonA = nilaiA;
-    // myData.butonB = nilaiB;
-    // esp_now_send(broadcastAddress, (uint8_t *) &myData, sizeof(myData));
-
-//    if (count_bt <= 5) {
-      while (!SerialBT.connected(1000)) {
+      while (!SerialBT.connected(3000)) {
         connected = SerialBT.connect(name);
         SerialBT.connect(name);
-        count_bt++;
+//        count_bt++;
         Serial.println("Gagal Konek ke Bt.");
-//      }
+
     }
   }
   nilaiA = (byte)EEPROM.readByte(37);
   nilaiB = (byte)EEPROM.readByte(38);
-  Serial.print("nilai A ");
-  Serial.print(nilaiA);
-  Serial.print("  nilai b ");
-  Serial.println(nilaiB);
-  
+//  Serial.print("nilai A ");
+//  Serial.print(nilaiA);
+//  Serial.print("  nilai b ");
+//  Serial.println(nilaiB);
+
+  Serial.println(Jam);
   myData.id = BOARD_ID;
   myData.butonA = nilaiA;
   myData.butonB = nilaiB;
+  myData.resetl = resetloket;
   esp_now_send(broadcastAddress, (uint8_t *)&myData, sizeof(myData));
   // Serial.println(count_bt);
   // Serial.print(nilaiA);
@@ -370,11 +369,14 @@ void loop() {
   // PRINT("\nWaku Sekarang ", szTxt);
 
   //mereset nilai button ke 0
-  if (Jam >= 12 && Jam <= 07 && Menit == 00 || Menit == 0) {
+  if (Jam >= 1 && Jam <= 7) {
+    Serial.println("di reset ke 0");
+    resetloket = 1;
     EEPROM.writeByte(37, 0);
     EEPROM.writeByte(38, 0);
     EEPROM.commit();
-  }
+  }else{
+    resetloket = 0;}
 }
 
 
