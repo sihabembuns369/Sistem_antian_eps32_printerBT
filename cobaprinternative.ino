@@ -19,32 +19,36 @@
 #include "EEPROM.h"
 #include "home.h"
 
+/// variable untuk tombol antrian
 int nilaiA, nilaiB = 0;
-int bbb = 0,aaa = 0;
+int bbb = 0, aaa = 0;
+
 RtcDS3231<TwoWire> Rtc(Wire);
 uint8_t Jam, Menit, Detik;
+
 BluetoothSerial SerialBT;
 Adafruit_Thermal printer(&SerialBT);
 bool state;
 byte statewifi = 0;
 int stwf = 0;
 byte count_bt = 0;
+
 //set jam manual
 int setjam;
 int setmenit;
 int setdetik;
 String jam, menit, detik;
-char nama_hari[7][12] = {"sabtu", "minggu", "senen", "selasa", "rabu", "kamis", "jumat"};
+char nama_hari[7][12] = { "sabtu", "minggu", "senen", "selasa", "rabu", "kamis", "jumat" };
 
 
 
-const char *ssid = "kampret";
+const char *ssid = "Antrian";
 const char *password = "123456789";
 WebServer server(80);
-
+#define BOARD_ID 1
 uint8_t broadcastAddress[] = { 0xC0, 0x49, 0xEF, 0xE7, 0xC7, 0x8C };
 typedef struct struct_message {
-
+int id;
   int butonA;
   int butonB;
   //  uint8_t jam;
@@ -69,7 +73,8 @@ char szTxt[20];
 #define pinbtnA 35
 #define pinbtnB 32
 #define pinbtnChangeWifi 5
-
+#define lampuSTA 27
+#define lampuAP 26
 uint8_t address[] = { 0x66, 0x32, 0xB0, 0xC6, 0x1D, 0xBF };
 String name = "RPP02N";
 bool connected;
@@ -187,49 +192,78 @@ void setup() {
 
   SerialBT.setPin("0000");
   SerialBT.begin("Sihab", true);
-  // WiFi.softAPConfig(ip, gateway, subnet);
-  //  WiFi.mode(WIFI_AP);
+
   statewifi = (byte)EEPROM.readByte(stwf);
   // Serial.print(statewifi);
   String ssidString = read_String(3);
   String passString = read_String(14);
-  const char *ssid = ssidString.c_str();
-  const char *password = passString.c_str();
-  Serial.println(ssidString);
-  Serial.println(passString);
 
-  name = read_String(25);
-  Serial.println(name);
+  //untuk mengecek apakah di eeprom sudah ada isi dari ssid dan password?
+  Serial.println(ssidString);
+  if (ssidString == "����������" || ssidString == "⸮⸮⸮⸮⸮⸮⸮⸮⸮⸮") {
+    ssid = ssidString.c_str();
+    password = passString.c_str();
+    Serial.println("EEPROM SSID ADA NILAINYA");
+  } else {
+    Serial.println("EEPROM SSID KOSONG");
+
+    ssid = ssid;
+    password = password;
+  }
+
+  Serial.println(ssid);
+  Serial.println(password);
+  Serial.print("nilai statewifi = ");
+  Serial.println(statewifi);
+
+
+  //memaca nilai nama bt dari eeprom
+  String name2 = read_String(25);
+  if (name == "����������" || name =="⸮⸮⸮⸮⸮⸮⸮⸮⸮⸮") {
+    name = name2;
+  } else {
+    name = name;
+  }
+
+
+  // Serial.println(name);
+
   // Serial.print((char)EEPROM.readChar(3));
   // Serial.print((char)EEPROM.readChar(4));
   // Serial.println((char)EEPROM.readChar(5));
+
   count_bt = 0;
+  //apabila masuk ke mode AP
   if (!WiFi.softAP(ssid, password) && statewifi == 1) {
 
     log_e("Soft AP creation failed.");
     while (1)
       ;
   }
-
+  //apabila masuk ke mode STA
   else if (statewifi == 0 && !connected) {
     Serial.println("Masuk Ke mode normal/STA");
 
     WiFi.mode(WIFI_STA);
     if (esp_now_init() != ESP_OK) {
-      Serial.println("Error initializing ESP-NOW");
+      // Serial.println("Error initializing ESP-NOW");
       return;
     }
 
+    //menginiliasasi eps now
+//    esp_now_set_self_role(ESP_NOW_ROLE_CONTROLLER);
     esp_now_register_send_cb(OnDataSent);
     memcpy(peerInfo.peer_addr, broadcastAddress, 6);
+//     esp_now_add_peer(broadcastAddress, ESP_NOW_ROLE_SLAVE, 1, NULL, 0);
     peerInfo.channel = 0;
     peerInfo.encrypt = false;
     if (esp_now_add_peer(&peerInfo) != ESP_OK) {
-      Serial.println("Failed to add peer");
+      // Serial.println("Failed to add peer");
       return;
     }
   }
 
+  //apabila berada di mode AP
   if (statewifi == 1) {
     IPAddress myIP = WiFi.softAPIP();
 
@@ -242,12 +276,12 @@ void setup() {
   }
 
   Rtc.Begin(21, 22);
-  // RtcDateTime compiled = RtcDateTime(__DATE__, __TIME__);
-  // Rtc.SetDateTime(compiled);
-  // WiFi.mode(WIFI_STA);
+
   pinMode(pinbtnA, INPUT_PULLUP);
   pinMode(pinbtnB, INPUT_PULLUP);
   pinMode(pinbtnChangeWifi, INPUT_PULLUP);
+  pinMode(lampuSTA, OUTPUT);
+  pinMode(lampuAP, OUTPUT);
 }
 
 void loop() {
@@ -260,22 +294,40 @@ void loop() {
   statewifi = (byte)EEPROM.readByte(stwf);
   // Serial.print(statewifi);
   if (statewifi == 1) {
-    // Serial.println(" mode AP");
+    Serial.println(" mode AP");
+    digitalWrite(lampuAP, HIGH);
+    digitalWrite(lampuSTA, LOW);
+
     count_bt = 0;
   } else if ((statewifi == 0 || statewifi == 255) && !connected) {
-    // Serial.println(" mode STA");
+    Serial.println(" mode STA");
+    digitalWrite(lampuAP, LOW);
+    digitalWrite(lampuSTA, HIGH);
+
+    // myData.butonA = nilaiA;
+    // myData.butonB = nilaiB;
     // esp_now_send(broadcastAddress, (uint8_t *) &myData, sizeof(myData));
-    if (count_bt <= 5) {
+
+//    if (count_bt <= 5) {
       while (!SerialBT.connected(1000)) {
         connected = SerialBT.connect(name);
         SerialBT.connect(name);
         count_bt++;
-        Serial.println("Failed to connect. Make sure remote device is available and in range, then restart app.");
-      }
+        Serial.println("Gagal Konek ke Bt.");
+//      }
     }
   }
   nilaiA = (byte)EEPROM.readByte(37);
   nilaiB = (byte)EEPROM.readByte(38);
+  Serial.print("nilai A ");
+  Serial.print(nilaiA);
+  Serial.print("  nilai b ");
+  Serial.println(nilaiB);
+  
+  myData.id = BOARD_ID;
+  myData.butonA = nilaiA;
+  myData.butonB = nilaiB;
+  esp_now_send(broadcastAddress, (uint8_t *)&myData, sizeof(myData));
   // Serial.println(count_bt);
   // Serial.print(nilaiA);
   // Serial.print(" ");
@@ -286,7 +338,7 @@ void loop() {
   // Serial.println(bbb);
 
 
-
+  //state adalah button
   if (state == 1 && (statewifi == 0 || statewifi == 255)) {
     Serial.println("button di tekan ke mode AP");
     EEPROM.writeByte(stwf, 1);
@@ -314,8 +366,15 @@ void loop() {
   }
 
   //Menampilkanke serial monitor
-  sprintf(szTxt, "%02d/%02d/%02d Jam %02d:%02d:%02d",now.Day(),now.Month(),now.Year(), Jam, Menit, Detik);
-  PRINT("\nWaku Sekarang ", szTxt);
+  sprintf(szTxt, "%02d/%02d/%02d Jam %02d:%02d:%02d", now.Day(), now.Month(), now.Year(), Jam, Menit, Detik);
+  // PRINT("\nWaku Sekarang ", szTxt);
+
+  //mereset nilai button ke 0
+  if (Jam >= 12 && Jam <= 07 && Menit == 00 || Menit == 0) {
+    EEPROM.writeByte(37, 0);
+    EEPROM.writeByte(38, 0);
+    EEPROM.commit();
+  }
 }
 
 
@@ -342,7 +401,8 @@ void buttonAA() {
   }
 
   if (nilaiA > 30) {
-    nilaiA = 0;
+    EEPROM.writeByte(37, 0);
+    EEPROM.commit();
   }
 }
 
@@ -354,14 +414,14 @@ void buttonBB() {
     nilaiB++;
     // bbb++;
     delay(10);
-    EEPROM.writeByte(38,nilaiB);
+    EEPROM.writeByte(38, nilaiB);
     EEPROM.commit();
     if (nilaiB < 10) {
       NomerBB = +"B0";
     } else if (nilaiB >= 10 && nilaiB < 31) {
       NomerBB = +"B";
     }
-    
+
 
     nomer_bb = NomerBB + String(nilaiB);
 
@@ -370,7 +430,8 @@ void buttonBB() {
   }
 
   if (nilaiB > 30) {  //apabila nilai dari tombol b lebih dari angka 99, maka akan kembali ke 0
-    nilaiB = 0;
+    EEPROM.writeByte(38, 0);
+    EEPROM.commit();
   }
 }
 
